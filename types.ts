@@ -1,3 +1,4 @@
+
 export interface SubtitleCue {
   id: string;
   startTime: number; // in seconds
@@ -53,6 +54,9 @@ export interface VRProfile {
 
 export type MediaType = 'video' | 'audio';
 export type SourceType = 'LOCAL' | 'NETWORK';
+export type ControlMode = 'SENSOR' | 'TOUCH';
+export type DragAxis = 'FREE' | 'HORIZONTAL';
+export type LibraryViewMode = 'GRID' | 'LIST';
 
 export interface LibraryItem {
   id: string;
@@ -65,11 +69,9 @@ export interface LibraryItem {
   duration?: number;
   format?: VideoFormat; // Auto-detected format
   isConfigured?: boolean; // Track if user has seen settings for this item
+  defaultControlMode?: ControlMode;
+  defaultVrMode?: VRMode;
 }
-
-export type ControlMode = 'SENSOR' | 'TOUCH';
-export type DragAxis = 'FREE' | 'HORIZONTAL';
-export type LibraryViewMode = 'GRID' | 'LIST';
 
 export interface PlayerConfig {
   mode: VRMode;

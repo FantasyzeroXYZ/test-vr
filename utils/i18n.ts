@@ -113,7 +113,11 @@ export const translations = {
     clearData: "清除所有数据",
     exitVR: "退出 VR",
     dataImported: "数据已导入",
-    dataCleared: "数据已清除"
+    dataCleared: "数据已清除",
+    typeAudio: "音频",
+    typeVideo: "视频",
+    ccLoaded: "字幕已加载",
+    addCC: "添加字幕"
   },
   en: {
     appTitle: "VR LinguaGlance",
@@ -227,6 +231,10 @@ export const translations = {
     clearData: "Clear All Data",
     exitVR: "Exit VR",
     dataImported: "Data Imported",
-    dataCleared: "Data Cleared"
+    dataCleared: "Data Cleared",
+    typeAudio: "Audio",
+    typeVideo: "Video",
+    ccLoaded: "CC Loaded",
+    addCC: "+ Subtitles"
   }
 };

@@ -33,11 +33,17 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
   const [fmtDegree, setFmtDegree] = useState<'180' | '360'>('180');
   const [fmtStereo, setFmtStereo] = useState<'MONO' | 'SBS' | 'TB'>('MONO');
 
+  // Control & View Preferences
+  const [formControlMode, setFormControlMode] = useState<ControlMode>('TOUCH');
+  const [formVrMode, setFormVrMode] = useState<VRMode>(VRMode.MAGIC_WINDOW);
+
   const openAddModal = () => {
       setEditingItem(null);
       setFormTitle('');
       setFormUrl('');
       setFormThumbnail(undefined);
+      setFormControlMode('TOUCH');
+      setFormVrMode(VRMode.MAGIC_WINDOW);
       setShowAddModal(true);
   };
 
@@ -54,6 +60,10 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
       if (fmt.includes('SBS')) setFmtStereo('SBS');
       else if (fmt.includes('TB')) setFmtStereo('TB');
       else setFmtStereo('MONO');
+
+      // Set defaults from item or fallbacks
+      setFormControlMode(item.defaultControlMode || 'TOUCH');
+      setFormVrMode(item.defaultVrMode || VRMode.MAGIC_WINDOW);
 
       setShowAddModal(true);
   };
@@ -124,7 +134,9 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
             source: 'LOCAL',
             format: detectedFormat,
             thumbnail: thumb,
-            isConfigured: false 
+            isConfigured: false,
+            defaultControlMode: 'TOUCH',
+            defaultVrMode: VRMode.MAGIC_WINDOW
           };
           
           setEditingItem(newItem);
@@ -137,6 +149,9 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
           if (detectedFormat.includes('SBS')) setFmtStereo('SBS');
           else if (detectedFormat.includes('TB')) setFmtStereo('TB');
           else setFmtStereo('MONO');
+          
+          setFormControlMode('TOUCH');
+          setFormVrMode(VRMode.MAGIC_WINDOW);
           
           setShowAddModal(true);
       }
@@ -173,7 +188,9 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
                 source: 'NETWORK',
                 thumbnail: formThumbnail || 'https://placehold.co/600x400/0f172a/10b981?text=WEB',
                 format: computeFormatFromUI(),
-                isConfigured: false 
+                isConfigured: false,
+                defaultControlMode: formControlMode,
+                defaultVrMode: formVrMode
             };
             setItems(prev => [newItem, ...prev]);
             setShowAddModal(false);
@@ -186,7 +203,16 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
           if (exists) {
               setItems(prev => prev.map(item => 
                   item.id === editingItem.id 
-                  ? { ...item, title: formTitle, url: formUrl, format: updatedFormat, thumbnail: formThumbnail, isConfigured: true }
+                  ? { 
+                      ...item, 
+                      title: formTitle, 
+                      url: formUrl, 
+                      format: updatedFormat, 
+                      thumbnail: formThumbnail, 
+                      isConfigured: true,
+                      defaultControlMode: formControlMode,
+                      defaultVrMode: formVrMode
+                    }
                   : item
               ));
           } else {
@@ -196,7 +222,9 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
                   title: formTitle,
                   format: updatedFormat,
                   thumbnail: formThumbnail,
-                  isConfigured: true
+                  isConfigured: true,
+                  defaultControlMode: formControlMode,
+                  defaultVrMode: formVrMode
               };
               setItems(prev => [finalizedItem, ...prev]);
           }
@@ -223,13 +251,17 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
 
   // Immediate Play on Click
   const handleClickItem = (item: LibraryItem) => {
+      // Use defaults saved on item, or fallback to global defaults
+      const targetMode = item.defaultVrMode || defaultMode;
+      const targetControl = item.defaultControlMode || 'TOUCH';
+
       onPlay(item, {
-          mode: defaultMode,
+          mode: targetMode,
           screenType: defaultScreen,
           videoFormat: item.format || VideoFormat.MONO_2D,
           profile: currentProfile,
           isGameMode: false,
-          controlMode: 'SENSOR',
+          controlMode: targetControl, // Use item specific control mode
           dragAxis: 'FREE'
       });
   };
@@ -279,6 +311,34 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
                 <SelectionButton active={fmtStereo === 'TB'} onClick={() => setFmtStereo('TB')}>{t.stereoTB}</SelectionButton>
             </div>
         </div>
+
+        {/* New Viewing Options */}
+        <div className="pt-4 border-t border-slate-800/50 space-y-4">
+             <div className="space-y-2">
+                 <label className="text-xs text-slate-400 block">{t.displayMode} (Default)</label>
+                 <div className="flex gap-2">
+                     <SelectionButton active={formVrMode === VRMode.MAGIC_WINDOW} onClick={() => setFormVrMode(VRMode.MAGIC_WINDOW)}>
+                         <i className="fas fa-mobile-alt mr-1"></i> Non-VR
+                     </SelectionButton>
+                     <SelectionButton active={formVrMode === VRMode.STEREO} onClick={() => setFormVrMode(VRMode.STEREO)}>
+                         <i className="fas fa-vr-cardboard mr-1"></i> VR Glasses
+                     </SelectionButton>
+                 </div>
+             </div>
+             
+             <div className="space-y-2">
+                 <label className="text-xs text-slate-400 block">{t.controlMode} (Default)</label>
+                 <div className="flex gap-2">
+                     <SelectionButton active={formControlMode === 'TOUCH'} onClick={() => setFormControlMode('TOUCH')}>
+                         <i className="fas fa-fingerprint mr-1"></i> Touch
+                     </SelectionButton>
+                     <SelectionButton active={formControlMode === 'SENSOR'} onClick={() => setFormControlMode('SENSOR')}>
+                         <i className="fas fa-compass mr-1"></i> Gyroscope
+                     </SelectionButton>
+                 </div>
+             </div>
+        </div>
+
       </div>
   );
 
@@ -421,7 +481,7 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
                 ) : (
                   <div className={`flex flex-col items-center justify-center ${item.type === 'audio' ? 'text-pink-500' : 'text-slate-500'}`}>
                     <i className={`fas ${item.type === 'audio' ? 'fa-music' : 'fa-film'} ${viewMode === 'GRID' ? 'text-4xl' : 'text-2xl'} opacity-70`}></i>
-                    {viewMode === 'GRID' && item.type === 'audio' && <span className="text-xs mt-2 font-mono uppercase tracking-widest">Audio</span>}
+                    {viewMode === 'GRID' && item.type === 'audio' && <span className="text-xs mt-2 font-mono uppercase tracking-widest">{t.typeAudio}</span>}
                   </div>
                 )}
                 
@@ -462,14 +522,14 @@ export const VideoLibrary: React.FC<VideoLibraryProps> = ({ items, setItems, onP
               >
                 <h3 className="font-bold text-sm md:text-base truncate text-slate-100 mb-1 cursor-pointer hover:text-emerald-400" onClick={() => handleClickItem(item)} title={item.title}>{item.title}</h3>
                 <div className="flex items-center gap-2 text-xs text-slate-500">
-                     <i className={`fas ${item.type === 'audio' ? 'fa-music' : 'fa-video'}`}></i> <span>{item.type === 'audio' ? 'Audio' : 'Video'}</span>
+                     <i className={`fas ${item.type === 'audio' ? 'fa-music' : 'fa-video'}`}></i> <span>{item.type === 'audio' ? t.typeAudio : t.typeVideo}</span>
                 </div>
 
                 {viewMode === 'LIST' && (
                     <div className="mt-2">
                          <label className={`inline-flex text-[10px] font-bold px-2 py-1 rounded border cursor-pointer transition-colors items-center gap-1.5 ${item.subtitleUrl ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}>
                             <i className="fas fa-closed-captioning"></i> 
-                            <span>{item.subtitleUrl ? 'CC Loaded' : '+ Subtitles'}</span>
+                            <span>{item.subtitleUrl ? t.ccLoaded : t.addCC}</span>
                             <input type="file" accept=".srt,.vtt" className="hidden" onChange={(e) => handleSubtitleUpload(e, item.id)} />
                         </label>
                     </div>

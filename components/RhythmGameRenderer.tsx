@@ -26,7 +26,7 @@ export const RhythmGameRenderer: React.FC<RhythmGameRendererProps> = ({ mediaRef
   const dataArrayRef = useRef<Uint8Array | null>(null);
   
   // Game Loop Refs
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number>(0);
   const notesRef = useRef<GameNote[]>([]); // Mutable ref for high freq updates
   const lastBeatFrame = useRef<number>(0);
   const frameCount = useRef<number>(0);

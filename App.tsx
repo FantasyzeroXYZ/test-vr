@@ -189,7 +189,7 @@ const App: React.FC = () => {
       }
       
       if (config.mode === VRMode.STEREO) {
-          handleEnterVR();
+          handleEnterVR(config.controlMode);
       }
   };
 
@@ -211,12 +211,20 @@ const App: React.FC = () => {
       }
   };
 
-  const handleEnterVR = () => {
+  const handleEnterVR = (targetControlMode?: ControlMode) => {
       if (document.documentElement.requestFullscreen) {
           document.documentElement.requestFullscreen().catch(() => {});
       }
-      // Force sensor mode when entering VR
-      setPlayerConfig(prev => ({ ...prev, mode: VRMode.STEREO, controlMode: 'SENSOR' }));
+      // Force sensor mode when entering VR unless specified
+      setPlayerConfig(prev => ({ 
+          ...prev, 
+          mode: VRMode.STEREO, 
+          controlMode: targetControlMode || 'SENSOR' 
+      }));
+      
+      // Reset base rotation to handle physical orientation change (Portrait -> Landscape)
+      baseRotation.current = null;
+
       if (screen.orientation && (screen.orientation as any).lock) {
           (screen.orientation as any).lock('landscape').catch(()=> console.log('Orient lock failed (iOS expected)'));
       }
@@ -224,6 +232,9 @@ const App: React.FC = () => {
 
   const handleExitVRMode = () => {
       setPlayerConfig(prev => ({ ...prev, mode: VRMode.MAGIC_WINDOW }));
+      // Reset base rotation
+      baseRotation.current = null;
+
       if (document.exitFullscreen) document.exitFullscreen().catch(()=>Object);
       if (screen.orientation && (screen.orientation as any).unlock) {
           (screen.orientation as any).unlock();
@@ -573,7 +584,16 @@ const App: React.FC = () => {
 
   // Orientation & Compass Logic
   useEffect(() => {
-    if (view !== 'player' || playerConfig.controlMode !== 'SENSOR') return;
+    // Add listener for screen orientation change to reset base rotation
+    // This fixes the issue where user enters VR in Portrait, then rotates to Landscape,
+    // causing the axis mapping to be incorrect if using the old base.
+    const handleResize = () => {
+         baseRotation.current = null;
+    };
+    window.addEventListener('resize', handleResize);
+
+    if (view !== 'player' || playerConfig.controlMode !== 'SENSOR') return () => window.removeEventListener('resize', handleResize);
+    
     const handleOrientation = (e: DeviceOrientationEvent) => {
         if (e.alpha === null) return;
         lastRawOrientation.current = { alpha: e.alpha || 0, beta: e.beta || 0, gamma: e.gamma || 0 };
@@ -581,6 +601,8 @@ const App: React.FC = () => {
 
         const base = baseRotation.current;
         const isLandscape = window.innerWidth > window.innerHeight;
+        // Fix: Use landscape mapping if in VR mode even if screen reports portrait
+        const useLandscapeMapping = isLandscape || playerConfig.mode === VRMode.STEREO;
         
         // Yaw: Left turn = +Alpha. 
         let yaw = (e.alpha || 0) - base.alpha;
@@ -588,15 +610,22 @@ const App: React.FC = () => {
         if (yaw < -180) yaw += 360;
         
         let pitch = 0;
-        if (isLandscape) pitch = (e.gamma || 0) - base.gamma;
-        else pitch = (e.beta || 0) - base.beta;
+        if (useLandscapeMapping) {
+            // FIX: Invert vertical axis for VR Stereo/Landscape Mode to match natural head movement
+            pitch = -((e.gamma || 0) - base.gamma);
+        } else {
+            pitch = (e.beta || 0) - base.beta;
+        }
         pitch = Math.max(-80, Math.min(80, pitch));
         
         setHeadRotation({ x: pitch, y: yaw });
     };
     window.addEventListener('deviceorientation', handleOrientation);
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, [view, playerConfig.controlMode]);
+    return () => {
+        window.removeEventListener('deviceorientation', handleOrientation);
+        window.removeEventListener('resize', handleResize);
+    };
+  }, [view, playerConfig.controlMode, playerConfig.mode]);
 
   useEffect(() => {
     if (view !== 'player') return;
@@ -663,8 +692,9 @@ const App: React.FC = () => {
             {playerConfig.mode === VRMode.STEREO && (
                 <div className="absolute top-4 right-4 z-[100] pointer-events-auto">
                     <button 
-                        onClick={handleExitVRMode}
+                        onClick={() => handleExitVRMode()}
                         className="w-12 h-12 rounded-full bg-red-600/80 text-white flex items-center justify-center border-2 border-white/20 shadow-xl backdrop-blur-md"
+                        aria-label={t.close}
                     >
                         <i className="fas fa-times text-xl"></i>
                     </button>
@@ -677,7 +707,7 @@ const App: React.FC = () => {
                 
                 {/* Top Bar */}
                 <div className="flex justify-between items-start pointer-events-auto">
-                    <button onClick={handleExit} className="bg-black/40 backdrop-blur text-white p-3 rounded-full hover:bg-white/20 transition-all border border-white/10">
+                    <button onClick={handleExit} className="bg-black/40 backdrop-blur text-white p-3 rounded-full hover:bg-white/20 transition-all border border-white/10" aria-label={t.cancel}>
                         <i className="fas fa-arrow-left text-xl"></i>
                     </button>
                     
@@ -698,6 +728,7 @@ const App: React.FC = () => {
                     <button 
                          onClick={(e) => { e.stopPropagation(); togglePlay(); }}
                          className="pointer-events-auto w-20 h-20 bg-black/50 backdrop-blur rounded-full flex items-center justify-center text-white/90 hover:bg-black/70 hover:scale-110 transition-all border-2 border-white/20 shadow-2xl"
+                         aria-label={isPlaying ? t.pause : t.play}
                     >
                         <i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'} text-3xl ml-1`}></i>
                     </button>
@@ -708,7 +739,7 @@ const App: React.FC = () => {
                     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 backdrop-blur border border-white/10 p-6 rounded-2xl pointer-events-auto min-w-[300px] z-50 max-h-[80vh] overflow-y-auto">
                          <div className="flex justify-between items-center mb-4">
                              <h3 className="font-bold text-white">{t.settings}</h3>
-                             <button onClick={() => setShowSettingsOverlay(false)}><i className="fas fa-times text-slate-400"></i></button>
+                             <button onClick={() => setShowSettingsOverlay(false)} aria-label={t.close}><i className="fas fa-times text-slate-400"></i></button>
                          </div>
                          
                          <div className="space-y-4">
@@ -760,7 +791,7 @@ const App: React.FC = () => {
                 <div className="w-full pointer-events-auto">
                      <div className="bg-transparent p-2 px-4 flex items-center gap-3 relative">
                         
-                        <button onClick={() => setShowSettingsOverlay(!showSettingsOverlay)} className="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center">
+                        <button onClick={() => setShowSettingsOverlay(!showSettingsOverlay)} className="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center" aria-label={t.settings}>
                             <i className="fas fa-cog"></i>
                         </button>
 
@@ -783,12 +814,13 @@ const App: React.FC = () => {
                             <button 
                                 onClick={() => setShowVolumeControl(!showVolumeControl)} 
                                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${showVolumeControl ? 'text-white bg-white/10' : 'text-slate-300 hover:text-white hover:bg-white/10'}`}
+                                aria-label="Volume Control"
                             >
                                 <i className={`fas ${volume === 0 ? 'fa-volume-mute' : volume < 0.5 ? 'fa-volume-down' : 'fa-volume-up'} text-xs`}></i>
                             </button>
                         </div>
 
-                        <button onClick={() => seekVideo(-5)} className="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center">
+                        <button onClick={() => seekVideo(-5)} className="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center" aria-label={t.actionSeekBack}>
                             <i className="fas fa-undo-alt text-xs"></i>
                         </button>
                         
@@ -806,15 +838,15 @@ const App: React.FC = () => {
                              <span className="text-[10px] font-mono text-white w-8">{Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2,'0')}</span>
                         </div>
 
-                         <button onClick={() => seekVideo(5)} className="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center">
+                         <button onClick={() => seekVideo(5)} className="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center" aria-label={t.actionSeekFwd}>
                             <i className="fas fa-redo-alt text-xs"></i>
                         </button>
 
-                        <button onClick={handleEnterVR} className="w-10 h-8 rounded-full bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-all border border-emerald-500/30">
+                        <button onClick={() => handleEnterVR()} className="w-10 h-8 rounded-full bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-all border border-emerald-500/30" aria-label={t.enterVR}>
                              <i className="fas fa-vr-cardboard"></i>
                         </button>
                         
-                        <button onClick={toggleFullscreen} className="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center">
+                        <button onClick={toggleFullscreen} className="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center" aria-label={t.fullscreen}>
                             <i className="fas fa-expand"></i>
                         </button>
                      </div>

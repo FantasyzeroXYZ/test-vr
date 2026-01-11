@@ -267,6 +267,7 @@ export const EyeView: React.FC<EyeViewProps> = ({
                             onClick={onCloseDefinition}
                             className="bg-white/10 p-3 rounded-full hover:bg-red-500/50 transition-colors border border-white/20"
                             data-word="close-btn"
+                            aria-label={t.close}
                          >
                             <i className="fas fa-times text-white text-xl"></i>
                          </button>
