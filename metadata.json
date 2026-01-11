@@ -1,0 +1,5 @@
+{
+  "name": "VRplayer",
+  "description": "An immersive VR video player for language learning. Upload a video (supports 2D, 3D SBS/TB) and subtitles, then enter VR mode. Simply gaze at any word in the subtitles using the crosshair to instantly fetch definitions and translations using Gemini AI.",
+  "requestFramePermissions": []
+}
